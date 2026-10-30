@@ -44,6 +44,8 @@
   .seg { display: flex; background: #26282d; border-radius: 14px; padding: 4px; gap: 4px; }
   .seg button { flex: 1; min-height: 44px; padding: 10px; border: none; background: transparent; color: var(--muted); }
   .seg button.sel { background: #3a3d44; color: var(--text); font-weight: 600; }
+  .seg.bloccato { opacity: .45; pointer-events: none; }
+  #via { width: 100%; min-height: 64px; font-size: 20px; }
   .stats { display: flex; justify-content: space-between; margin-top: 12px; text-align: center; }
   .stats div { flex: 1; }
   .stats b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; }
@@ -94,10 +96,7 @@
     <div class="leds" id="leds"></div>
   </section>
 
-  <div class="row">
-    <button id="via" class="go">Via</button>
-    <button id="stop" class="stop">Stop</button>
-  </div>
+  <button id="via" class="go">Via</button>
   <p class="hint" id="nota">Tieni lo schermo acceso durante la prova.</p>
 </main>
 
@@ -321,18 +320,27 @@ $('modoGps').onclick = () => scegliModo('gps');
 $('meno').onclick = () => { obiettivo = Math.min(600, obiettivo + 5); aggiorna(); inviaObiettivo(); };
 $('piu').onclick  = () => { obiettivo = Math.max(180, obiettivo - 5); aggiorna(); inviaObiettivo(); };
 $('cursore').oninput = e => { passo = Number(e.target.value); aggiorna(); };
-$('via').onclick = () => {
-  if (inCorsa) return;
+$('via').onclick = () => { if (inCorsa) ferma(); else parti(); };
+
+function parti() {
   inCorsa = true; inizio = Date.now();
-  if (modo === 'gps') { passi = []; avviaGps(); avviaSensori(); }
+  if (modo === 'gps') { avviaSensori(); passi = []; avviaGps(); }
   tieniSchermoAcceso();
-  invia('V'); aggiorna();
-};
-$('stop').onclick = () => {
+  invia('V');
+  $('via').textContent = 'Stop';
+  $('via').className = 'stop';
+  document.querySelector('.seg').classList.add('bloccato');
+  aggiorna();
+}
+function ferma() {
   inCorsa = false; fermaGps();
   window.removeEventListener('devicemotion', movimento);
-  invia('S'); aggiorna();
-};
+  invia('S');
+  $('via').textContent = 'Via';
+  $('via').className = 'go';
+  document.querySelector('.seg').classList.remove('bloccato');
+  aggiorna();
+}
 
 function aggiorna() {
   $('obiettivo').textContent = fmt(obiettivo);
