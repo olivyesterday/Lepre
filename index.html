@@ -21,7 +21,7 @@
   .pill { font-size: 13px; padding: 6px 12px; border-radius: 99px; background: var(--card); color: var(--muted); border: 1px solid var(--line); }
   .pill.on { color: var(--ok); border-color: #2f5a2f; }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 16px; }
-  .label { font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+  .label { font-size: 13px; color: var(--muted); margin-bottom: 8px; display: flex; justify-content: space-between; }
   button { font: inherit; color: var(--text); background: #2a2c31; border: 1px solid var(--line);
            border-radius: 14px; padding: 16px; min-height: 56px; cursor: pointer; }
   button:active { transform: scale(.98); }
@@ -41,6 +41,13 @@
   .go { background: #23402a; border-color: #2f5a2f; font-weight: 650; }
   .stop { background: #46262a; border-color: #6a3036; font-weight: 650; }
   .warn { color: var(--warn); }
+  .seg { display: flex; background: #26282d; border-radius: 14px; padding: 4px; gap: 4px; }
+  .seg button { flex: 1; min-height: 44px; padding: 10px; border: none; background: transparent; color: var(--muted); }
+  .seg button.sel { background: #3a3d44; color: var(--text); font-weight: 600; }
+  .stats { display: flex; justify-content: space-between; margin-top: 12px; text-align: center; }
+  .stats div { flex: 1; }
+  .stats b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; }
+  .stats span { font-size: 12px; color: var(--muted); }
 </style>
 </head>
 <body>
@@ -53,8 +60,13 @@
   <button id="collega" class="primary">Collega la lepre</button>
   <p id="avviso" class="hint warn" hidden></p>
 
+  <div class="seg" role="tablist">
+    <button id="modoSim" class="sel">Simulazione</button>
+    <button id="modoGps">Corsa reale (GPS)</button>
+  </div>
+
   <section class="card">
-    <div class="label">Passo della lepre</div>
+    <div class="label"><span>Passo della lepre</span></div>
     <div class="stepper">
       <button id="meno" aria-label="Lepre più lenta">−</button>
       <div class="big"><span id="obiettivo">6:00</span> <span class="unit">/km</span></div>
@@ -63,14 +75,21 @@
   </section>
 
   <section class="card">
-    <div class="label">Il tuo passo (simulato)</div>
+    <div class="label"><span id="titoloPasso">Il tuo passo (simulato)</span><span id="segnale"></span></div>
     <div class="big"><span id="passo">6:00</span> <span class="unit">/km</span></div>
-    <input id="cursore" type="range" min="240" max="480" step="1" value="360" aria-label="Il tuo passo">
-    <div class="scale"><span>4:00 veloce</span><span>8:00 lento</span></div>
+    <div id="zonaSim">
+      <input id="cursore" type="range" min="240" max="480" step="1" value="360" aria-label="Il tuo passo">
+      <div class="scale"><span>4:00 veloce</span><span>8:00 lento</span></div>
+    </div>
+    <div id="zonaGps" class="stats" hidden>
+      <div><b id="tempo">0:00</b><span>tempo</span></div>
+      <div><b id="distanza">0,00</b><span>km</span></div>
+      <div><b id="cadenza">–</b><span>passi/min</span></div>
+    </div>
   </section>
 
   <section class="card">
-    <div class="label">Cosa vede il runner</div>
+    <div class="label"><span>Cosa vede il runner</span></div>
     <div class="leds" id="leds"></div>
   </section>
 
@@ -78,27 +97,30 @@
     <button id="via" class="go">Via</button>
     <button id="stop" class="stop">Stop</button>
   </div>
-  <p class="hint">Tieni lo schermo acceso durante la prova.</p>
+  <p class="hint" id="nota">Tieni lo schermo acceso durante la prova.</p>
 </main>
 
 <script>
 const SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dc4c01';
 const COMANDI_UUID = '6e400002-b5a3-f393-e0a9-e50e24dc4c01';
-const SCARTO_MAX = 1.5;   // stesso valore del programma sulla scheda
+const SCARTO_MAX = 1.5;        // stesso valore del programma sulla scheda
+const FINESTRA_GPS = 12;       // secondi su cui si fa la media della velocità
+const PRECISIONE_MAX = 25;     // metri: punti GPS meno precisi vengono scartati
+const PASSO_FERMO = 12 * 60;   // sotto ~5 km/h si considera camminata/fermo
 
 let comandi = null, dispositivo = null;
-let obiettivo = 360;      // secondi al km
-let passo = 360;
+let modo = 'sim';
+let obiettivo = 360;           // secondi al km
+let passo = 360;               // secondi al km
 let inCorsa = false;
 let coda = Promise.resolve();
 
 const $ = id => document.getElementById(id);
-const fmt = s => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
+const fmt = s => { s = Math.round(s); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 
-// LED simulati sullo schermo
+// ---------- LED simulati sullo schermo ----------
 const leds = [];
 for (let i = 0; i < 6; i++) { const d = document.createElement('div'); d.className = 'led'; $('leds').appendChild(d); leds.push(d); }
-
 function disegnaLed() {
   const centro = 2.5;
   let pos = centro;
@@ -114,7 +136,7 @@ function disegnaLed() {
   });
 }
 
-// invio dei messaggi alla scheda, uno alla volta
+// ---------- Bluetooth ----------
 function invia(testo) {
   if (!comandi) return;
   const dati = new TextEncoder().encode(testo);
@@ -125,10 +147,11 @@ function invia(testo) {
 const inviaPasso = () => invia('P' + (passo / 60).toFixed(2));
 const inviaObiettivo = () => invia('T' + (obiettivo / 60).toFixed(2));
 
+function avvisa(testo) { $('avviso').hidden = !testo; $('avviso').textContent = testo || ''; }
+
 async function collega() {
   if (!navigator.bluetooth) {
-    $('avviso').hidden = false;
-    $('avviso').textContent = 'Questo browser non può usare il Bluetooth. Su iPhone apri la pagina con l’app Bluefy, su Android con Chrome.';
+    avvisa('Questo browser non può usare il Bluetooth. Su iPhone apri la pagina con l’app Bluefy, su Android con Chrome.');
     return;
   }
   try {
@@ -145,18 +168,16 @@ async function collega() {
     $('stato').textContent = 'Collegata';
     $('stato').classList.add('on');
     $('collega').textContent = 'Lepre collegata';
-    $('avviso').hidden = true;
+    avvisa('');
     inviaObiettivo();
     inviaPasso();
     tieniSchermoAcceso();
   } catch (e) {
     $('collega').disabled = false;
     $('collega').textContent = 'Collega la lepre';
-    $('avviso').hidden = false;
-    $('avviso').textContent = 'Collegamento non riuscito. Controlla che la scheda sia accesa e riprova.';
+    avvisa('Collegamento non riuscito. Controlla che la scheda sia accesa e riprova.');
   }
 }
-
 function scollegato() {
   comandi = null;
   $('stato').textContent = 'Non collegata';
@@ -169,24 +190,142 @@ let wakeLock = null;
 async function tieniSchermoAcceso() {
   try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
 }
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && comandi) tieniSchermoAcceso(); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && (comandi || inCorsa)) tieniSchermoAcceso(); });
 
-// controlli
+// ---------- GPS: velocità e distanza ----------
+let watchId = null, punti = [], ultimoPunto = null, distanzaTot = 0, inizio = 0;
+
+function metri(a, b) {   // distanza tra due punti GPS (formula dell'emisenoverso)
+  const R = 6371000, r = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * r, dLon = (b.lon - a.lon) * r;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+let avvisoGps = false;
+function nuovoPunto(p) {
+  const c = p.coords;
+  if (avvisoGps) { avvisa(''); avvisoGps = false; }
+  $('segnale').textContent = c.accuracy <= 10 ? 'GPS buono' : c.accuracy <= PRECISIONE_MAX ? 'GPS discreto' : 'GPS debole';
+  if (c.accuracy > PRECISIONE_MAX) return;
+  const punto = { t: p.timestamp, lat: c.latitude, lon: c.longitude, v: (c.speed != null && c.speed >= 0) ? c.speed : null };
+  if (ultimoPunto) {
+    const d = metri(ultimoPunto, punto);
+    if (d < 50) distanzaTot += d;        // salti enormi = errore del GPS
+  }
+  ultimoPunto = punto;
+  punti.push(punto);
+  punti = punti.filter(q => punto.t - q.t <= FINESTRA_GPS * 1000);
+  calcolaPasso();
+}
+
+function calcolaPasso() {
+  if (punti.length < 2) return;
+  let velocita;                          // metri al secondo
+  const conVel = punti.filter(q => q.v != null);
+  if (conVel.length >= punti.length / 2) {
+    velocita = conVel.reduce((s, q) => s + q.v, 0) / conVel.length;   // velocità misurata dal telefono
+  } else {
+    let d = 0;
+    for (let i = 1; i < punti.length; i++) d += metri(punti[i - 1], punti[i]);
+    velocita = d / ((punti.at(-1).t - punti[0].t) / 1000);
+  }
+  passo = velocita > 0.1 ? Math.min(PASSO_FERMO, 1000 / velocita) : PASSO_FERMO;
+  aggiorna();
+}
+
+function avviaGps() {
+  if (!('geolocation' in navigator)) { avvisa('Questo browser non può usare il GPS.'); return; }
+  punti = []; ultimoPunto = null; distanzaTot = 0;
+  $('segnale').textContent = 'Cerco il GPS…';
+  watchId = navigator.geolocation.watchPosition(nuovoPunto,
+    e => {
+      if (e.code === 1) avvisa('Permesso di posizione negato: attivalo nelle impostazioni del browser.');
+      else if (!ultimoPunto) { avvisa('Il GPS non risponde ancora: prova all’aperto.'); avvisoGps = true; }
+    },
+    { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 });
+}
+function fermaGps() { if (watchId != null) navigator.geolocation.clearWatch(watchId); watchId = null; }
+
+// ---------- Accelerometro: cadenza (passi al minuto) ----------
+let passi = [], filtro = 9.8, sopra = false, ultimoPasso = 0;
+
+function movimento(e) {
+  const a = e.accelerationIncludingGravity;
+  if (!a || a.x == null) return;
+  const forza = Math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z);
+  filtro = 0.8 * filtro + 0.2 * forza;          // ammorbidisce le vibrazioni
+  const ora = performance.now();
+  if (!sopra && filtro > 12 && ora - ultimoPasso > 250) {   // picco = un appoggio del piede
+    sopra = true; ultimoPasso = ora; passi.push(ora);
+  }
+  if (filtro < 10.5) sopra = false;
+  passi = passi.filter(t => ora - t < 10000);
+}
+function cadenzaAttuale() { return passi.length >= 4 ? Math.round(passi.length * 6) : 0; }
+
+async function avviaSensori() {
+  try {
+    if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+      const r = await DeviceMotionEvent.requestPermission();   // richiesto su iPhone
+      if (r !== 'granted') return;
+    }
+    window.addEventListener('devicemotion', movimento);
+  } catch (e) {}
+}
+
+// ---------- modalità ----------
+function scegliModo(m) {
+  if (inCorsa) return;
+  modo = m;
+  $('modoSim').classList.toggle('sel', m === 'sim');
+  $('modoGps').classList.toggle('sel', m === 'gps');
+  $('zonaSim').hidden = m !== 'sim';
+  $('zonaGps').hidden = m !== 'gps';
+  $('titoloPasso').textContent = m === 'sim' ? 'Il tuo passo (simulato)' : 'Il tuo passo (GPS)';
+  $('segnale').textContent = '';
+  $('nota').textContent = m === 'sim' ? 'Tieni lo schermo acceso durante la prova.'
+    : 'Usalo all’aperto. Il GPS impiega 10–30 secondi a stabilizzarsi. Lo schermo deve restare acceso.';
+  if (m === 'sim') passo = Number($('cursore').value);
+  aggiorna();
+}
+
+// ---------- controlli ----------
 $('collega').onclick = collega;
+$('modoSim').onclick = () => scegliModo('sim');
+$('modoGps').onclick = () => scegliModo('gps');
 $('meno').onclick = () => { obiettivo = Math.min(600, obiettivo + 5); aggiorna(); inviaObiettivo(); };
 $('piu').onclick  = () => { obiettivo = Math.max(180, obiettivo - 5); aggiorna(); inviaObiettivo(); };
 $('cursore').oninput = e => { passo = Number(e.target.value); aggiorna(); };
-$('via').onclick  = () => { inCorsa = true; invia('V'); aggiorna(); };
-$('stop').onclick = () => { inCorsa = false; invia('S'); aggiorna(); };
+$('via').onclick = () => {
+  if (inCorsa) return;
+  inCorsa = true; inizio = Date.now();
+  if (modo === 'gps') { passo = obiettivo; avviaGps(); avviaSensori(); }
+  tieniSchermoAcceso();
+  invia('V'); aggiorna();
+};
+$('stop').onclick = () => {
+  inCorsa = false; fermaGps();
+  window.removeEventListener('devicemotion', movimento);
+  invia('S'); aggiorna();
+};
 
 function aggiorna() {
   $('obiettivo').textContent = fmt(obiettivo);
-  $('passo').textContent = fmt(passo);
+  $('passo').textContent = (modo === 'gps' && passo >= PASSO_FERMO) ? '–:–' : fmt(passo);
   disegnaLed();
 }
 
-// il passo viene mandato 4 volte al secondo mentre si è collegati
-setInterval(() => { if (comandi) inviaPasso(); }, 250);
+// ogni 250 ms: passo alla scheda; ogni secondo: tempo, distanza, cadenza
+setInterval(() => { if (comandi && (modo === 'sim' || inCorsa)) inviaPasso(); }, 250);
+setInterval(() => {
+  if (!inCorsa || modo !== 'gps') return;
+  $('tempo').textContent = fmt((Date.now() - inizio) / 1000);
+  $('distanza').textContent = (distanzaTot / 1000).toFixed(2).replace('.', ',');
+  const c = cadenzaAttuale();
+  $('cadenza').textContent = c ? c : '–';
+  if (c) invia('C' + c);
+}, 1000);
 aggiorna();
 </script>
 </body>
