@@ -98,6 +98,7 @@
 
   <button id="via" class="go">Via</button>
   <p class="hint" id="nota">Tieni lo schermo acceso durante la prova.</p>
+  <p class="hint" style="opacity:.5">versione 3.2</p>
 </main>
 
 <script>
@@ -310,6 +311,7 @@ function scegliModo(m) {
   $('nota').textContent = m === 'sim' ? 'Tieni lo schermo acceso durante la prova.'
     : 'Usalo all’aperto. Il GPS impiega 10–30 secondi a stabilizzarsi. Lo schermo deve restare acceso.';
   if (m === 'sim') passo = Number($('cursore').value);
+  else { velocita = 0; passo = PASSO_FERMO; }      // la corsa reale parte da zero
   aggiorna();
 }
 
