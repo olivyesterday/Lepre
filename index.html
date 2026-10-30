@@ -82,6 +82,7 @@
       <div class="scale"><span>4:00 veloce</span><span>8:00 lento</span></div>
     </div>
     <div id="zonaGps" class="stats" hidden>
+      <div><b id="kmh">0,0</b><span>km/h</span></div>
       <div><b id="tempo">0:00</b><span>tempo</span></div>
       <div><b id="distanza">0,00</b><span>km</span></div>
       <div><b id="cadenza">–</b><span>passi/min</span></div>
@@ -104,8 +105,7 @@
 const SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dc4c01';
 const COMANDI_UUID = '6e400002-b5a3-f393-e0a9-e50e24dc4c01';
 const SCARTO_MAX = 1.5;        // stesso valore del programma sulla scheda
-const FINESTRA_GPS = 12;       // secondi su cui si fa la media della velocità
-const PRECISIONE_MAX = 25;     // metri: punti GPS meno precisi vengono scartati
+const PRECISIONE_MAX = 20;     // metri: punti GPS meno precisi vengono scartati
 const PASSO_FERMO = 12 * 60;   // sotto ~5 km/h si considera camminata/fermo
 
 let comandi = null, dispositivo = null;
@@ -192,10 +192,15 @@ async function tieniSchermoAcceso() {
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && (comandi || inCorsa)) tieniSchermoAcceso(); });
 
-// ---------- GPS: velocità e distanza ----------
-let watchId = null, punti = [], ultimoPunto = null, distanzaTot = 0, inizio = 0;
+// ---------- Il tuo passo: GPS + passi, uniti ----------
+const FALCATA_INIZIALE = 0.95;   // metri per passo: poi l'app impara la tua dal GPS
+let watchId = null, ultimoPunto = null, distanzaTot = 0, inizio = 0;
+let velGps = null, tGps = 0;     // ultima velocità GPS (m/s) e quando è arrivata
+let velocita = 0;                // la velocità stimata, in m/s: parte da 0
+let falcata = FALCATA_INIZIALE;
+try { const f = Number(localStorage.getItem('falcata')); if (f > 0.5 && f < 2) falcata = f; } catch (e) {}
 
-function metri(a, b) {   // distanza tra due punti GPS (formula dell'emisenoverso)
+function metri(a, b) {   // distanza tra due punti GPS
   const R = 6371000, r = Math.PI / 180;
   const dLat = (b.lat - a.lat) * r, dLon = (b.lon - a.lon) * r;
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLon / 2) ** 2;
@@ -206,72 +211,91 @@ let avvisoGps = false;
 function nuovoPunto(p) {
   const c = p.coords;
   if (avvisoGps) { avvisa(''); avvisoGps = false; }
-  $('segnale').textContent = c.accuracy <= 10 ? 'GPS buono' : c.accuracy <= PRECISIONE_MAX ? 'GPS discreto' : 'GPS debole';
+  const qualita = c.accuracy <= 10 ? 'GPS buono' : c.accuracy <= PRECISIONE_MAX ? 'GPS discreto' : 'GPS debole';
+  $('segnale').textContent = `${qualita} (±${Math.round(c.accuracy)} m)`;
   if (c.accuracy > PRECISIONE_MAX) return;
-  const punto = { t: p.timestamp, lat: c.latitude, lon: c.longitude, v: (c.speed != null && c.speed >= 0) ? c.speed : null };
+  const punto = { t: p.timestamp, lat: c.latitude, lon: c.longitude };
+  // la velocità misurata dal telefono (effetto Doppler) è la più precisa
+  let v = (c.speed != null && c.speed >= 0) ? c.speed : null;
   if (ultimoPunto) {
-    const d = metri(ultimoPunto, punto);
-    if (d < 50) distanzaTot += d;        // salti enormi = errore del GPS
+    const d = metri(ultimoPunto, punto), dt = (punto.t - ultimoPunto.t) / 1000;
+    if (d < 50) distanzaTot += d;                 // salti enormi = errore del GPS
+    if (v == null && dt > 0.5) v = d / dt;        // altrimenti: strada fatta / tempo
   }
   ultimoPunto = punto;
-  punti.push(punto);
-  punti = punti.filter(q => punto.t - q.t <= FINESTRA_GPS * 1000);
-  calcolaPasso();
+  if (v != null) { velGps = velGps == null ? v : 0.5 * velGps + 0.5 * v; tGps = Date.now(); }
 }
 
-function calcolaPasso() {
-  if (punti.length < 2) return;
-  let velocita;                          // metri al secondo
-  const conVel = punti.filter(q => q.v != null);
-  if (conVel.length >= punti.length / 2) {
-    velocita = conVel.reduce((s, q) => s + q.v, 0) / conVel.length;   // velocità misurata dal telefono
-  } else {
-    let d = 0;
-    for (let i = 1; i < punti.length; i++) d += metri(punti[i - 1], punti[i]);
-    velocita = d / ((punti.at(-1).t - punti[0].t) / 1000);
+// ogni mezzo secondo: unisce GPS e passi in un'unica velocità
+function stimaVelocita() {
+  const cad = cadenzaAttuale();
+  const gpsOk = velGps != null && Date.now() - tGps < 3000;
+  if (gpsOk && cad > 120 && velGps > 1.5) {       // corsa con buon GPS: impara la falcata
+    const f = velGps / (cad / 60);
+    if (f > 0.5 && f < 2) {
+      falcata = 0.97 * falcata + 0.03 * f;
+      try { localStorage.setItem('falcata', falcata.toFixed(3)); } catch (e) {}
+    }
   }
-  passo = velocita > 0.1 ? Math.min(PASSO_FERMO, 1000 / velocita) : PASSO_FERMO;
-  aggiorna();
+  const velPassi = cad > 0 ? (cad / 60) * falcata : 0;
+  let v;
+  if (gpsOk && cad > 0) v = 0.5 * velGps + 0.5 * velPassi;   // entrambi: media
+  else if (gpsOk) v = velGps;                                // solo GPS
+  else v = velPassi;                                         // GPS assente: solo passi
+  velocita += (v - velocita) * 0.35;                         // risposta in circa 2 secondi
+  if (velocita < 0.05) velocita = 0;
+  passo = velocita > 1000 / PASSO_FERMO ? 1000 / velocita : PASSO_FERMO;
 }
 
 function avviaGps() {
   if (!('geolocation' in navigator)) { avvisa('Questo browser non può usare il GPS.'); return; }
-  punti = []; ultimoPunto = null; distanzaTot = 0;
+  ultimoPunto = null; distanzaTot = 0; velGps = null; velocita = 0; passo = PASSO_FERMO;
   $('segnale').textContent = 'Cerco il GPS…';
   watchId = navigator.geolocation.watchPosition(nuovoPunto,
     e => {
       if (e.code === 1) avvisa('Permesso di posizione negato: attivalo nelle impostazioni del browser.');
-      else if (!ultimoPunto) { avvisa('Il GPS non risponde ancora: prova all’aperto.'); avvisoGps = true; }
+      else if (!ultimoPunto) { avvisa('Il GPS non risponde ancora: prova all’aperto. Intanto il passo si stima dai passi.'); avvisoGps = true; }
     },
     { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 });
 }
 function fermaGps() { if (watchId != null) navigator.geolocation.clearWatch(watchId); watchId = null; }
 
-// ---------- Accelerometro: cadenza (passi al minuto) ----------
-let passi = [], filtro = 9.8, sopra = false, ultimoPasso = 0;
+// ---------- Accelerometro: i passi ----------
+let passi = [], filtro = 9.8, media = 9.8, scarto = 1, sopra = false, ultimoPasso = 0;
 
 function movimento(e) {
   const a = e.accelerationIncludingGravity;
   if (!a || a.x == null) return;
   const forza = Math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z);
-  filtro = 0.8 * filtro + 0.2 * forza;          // ammorbidisce le vibrazioni
+  filtro = 0.75 * filtro + 0.25 * forza;                   // ammorbidisce le vibrazioni
+  media = 0.98 * media + 0.02 * filtro;                    // livello di riposo
+  scarto = 0.98 * scarto + 0.02 * Math.abs(filtro - media); // quanto "rimbalza" il telefono
+  const soglia = media + Math.max(1.2, scarto);            // si adatta a mano, fascia o tasca
   const ora = performance.now();
-  if (!sopra && filtro > 12 && ora - ultimoPasso > 250) {   // picco = un appoggio del piede
+  if (!sopra && filtro > soglia && ora - ultimoPasso > 250) {   // picco = un appoggio del piede
     sopra = true; ultimoPasso = ora; passi.push(ora);
   }
-  if (filtro < 10.5) sopra = false;
+  if (filtro < media) sopra = false;
   passi = passi.filter(t => ora - t < 10000);
 }
-function cadenzaAttuale() { return passi.length >= 4 ? Math.round(passi.length * 6) : 0; }
+// cadenza dagli ultimi passi (mediana degli intervalli): reagisce in pochi secondi
+function cadenzaAttuale() {
+  const ora = performance.now();
+  if (passi.length < 4 || ora - passi.at(-1) > 2000) return 0;
+  const recenti = passi.slice(-7), intervalli = [];
+  for (let i = 1; i < recenti.length; i++) intervalli.push(recenti[i] - recenti[i - 1]);
+  intervalli.sort((x, y) => x - y);
+  return Math.round(60000 / intervalli[Math.floor(intervalli.length / 2)]);
+}
 
 async function avviaSensori() {
   try {
     if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
-      const r = await DeviceMotionEvent.requestPermission();   // richiesto su iPhone
-      if (r !== 'granted') return;
+      const r = await DeviceMotionEvent.requestPermission();   // chiesto su iPhone (e alcuni Android)
+      if (r !== 'granted') avvisa('Permesso di movimento negato: i passi non verranno contati, resta solo il GPS.');
     }
-    window.addEventListener('devicemotion', movimento);
   } catch (e) {}
+  window.addEventListener('devicemotion', movimento);
 }
 
 // ---------- modalità ----------
@@ -282,7 +306,7 @@ function scegliModo(m) {
   $('modoGps').classList.toggle('sel', m === 'gps');
   $('zonaSim').hidden = m !== 'sim';
   $('zonaGps').hidden = m !== 'gps';
-  $('titoloPasso').textContent = m === 'sim' ? 'Il tuo passo (simulato)' : 'Il tuo passo (GPS)';
+  $('titoloPasso').textContent = m === 'sim' ? 'Il tuo passo (simulato)' : 'Il tuo passo (GPS + passi)';
   $('segnale').textContent = '';
   $('nota').textContent = m === 'sim' ? 'Tieni lo schermo acceso durante la prova.'
     : 'Usalo all’aperto. Il GPS impiega 10–30 secondi a stabilizzarsi. Lo schermo deve restare acceso.';
@@ -300,7 +324,7 @@ $('cursore').oninput = e => { passo = Number(e.target.value); aggiorna(); };
 $('via').onclick = () => {
   if (inCorsa) return;
   inCorsa = true; inizio = Date.now();
-  if (modo === 'gps') { passo = obiettivo; avviaGps(); avviaSensori(); }
+  if (modo === 'gps') { passi = []; avviaGps(); avviaSensori(); }
   tieniSchermoAcceso();
   invia('V'); aggiorna();
 };
@@ -312,19 +336,21 @@ $('stop').onclick = () => {
 
 function aggiorna() {
   $('obiettivo').textContent = fmt(obiettivo);
+  $('kmh').textContent = (velocita * 3.6).toFixed(1).replace('.', ',');
   $('passo').textContent = (modo === 'gps' && passo >= PASSO_FERMO) ? '–:–' : fmt(passo);
   disegnaLed();
 }
 
-// ogni 250 ms: passo alla scheda; ogni secondo: tempo, distanza, cadenza
+// ogni 250 ms: passo alla scheda · ogni 500 ms: nuova stima · ogni secondo: tempo e distanza
 setInterval(() => { if (comandi && (modo === 'sim' || inCorsa)) inviaPasso(); }, 250);
+setInterval(() => { if (inCorsa && modo === 'gps') { stimaVelocita(); aggiorna(); } }, 500);
 setInterval(() => {
   if (!inCorsa || modo !== 'gps') return;
   $('tempo').textContent = fmt((Date.now() - inizio) / 1000);
   $('distanza').textContent = (distanzaTot / 1000).toFixed(2).replace('.', ',');
   const c = cadenzaAttuale();
   $('cadenza').textContent = c ? c : '–';
-  if (c) invia('C' + c);
+  invia('C' + c);
 }, 1000);
 aggiorna();
 </script>
