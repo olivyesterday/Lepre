@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111214">
+<title>Lepre</title>
+<style>
+  :root {
+    --bg: #111214; --card: #1c1d21; --line: #2c2e33;
+    --text: #f2f2f0; --muted: #9a9ba1; --accent: #e8f4ff; --glow: #9fd0ff;
+    --ok: #7dd97d; --warn: #f0b45a;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+         padding: max(16px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom)); }
+  main { max-width: 440px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+  header { display: flex; align-items: center; justify-content: space-between; }
+  h1 { font-size: 22px; font-weight: 650; margin: 0; letter-spacing: .2px; }
+  .pill { font-size: 13px; padding: 6px 12px; border-radius: 99px; background: var(--card); color: var(--muted); border: 1px solid var(--line); }
+  .pill.on { color: var(--ok); border-color: #2f5a2f; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 16px; }
+  .label { font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+  button { font: inherit; color: var(--text); background: #2a2c31; border: 1px solid var(--line);
+           border-radius: 14px; padding: 16px; min-height: 56px; cursor: pointer; }
+  button:active { transform: scale(.98); }
+  button:disabled { opacity: .4; }
+  .primary { background: var(--accent); color: #0d1a26; border: none; font-weight: 650; width: 100%; }
+  .row { display: flex; gap: 10px; align-items: center; }
+  .row > * { flex: 1; }
+  .stepper { display: flex; align-items: center; justify-content: space-between; }
+  .stepper button { width: 64px; flex: none; font-size: 26px; padding: 8px; }
+  .big { font-size: 44px; font-weight: 650; font-variant-numeric: tabular-nums; text-align: center; }
+  .unit { font-size: 15px; color: var(--muted); font-weight: 400; }
+  input[type=range] { width: 100%; height: 44px; accent-color: var(--glow); }
+  .scale { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+  .leds { display: flex; justify-content: space-between; gap: 8px; padding: 6px 4px; }
+  .led { flex: 1; aspect-ratio: 1; max-width: 44px; border-radius: 50%; background: #26282d; transition: background .12s, box-shadow .12s; }
+  .hint { font-size: 13px; color: var(--muted); text-align: center; margin: 0; }
+  .go { background: #23402a; border-color: #2f5a2f; font-weight: 650; }
+  .stop { background: #46262a; border-color: #6a3036; font-weight: 650; }
+  .warn { color: var(--warn); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Lepre luminosa</h1>
+    <span id="stato" class="pill">Non collegata</span>
+  </header>
+
+  <button id="collega" class="primary">Collega la lepre</button>
+  <p id="avviso" class="hint warn" hidden></p>
+
+  <section class="card">
+    <div class="label">Passo della lepre</div>
+    <div class="stepper">
+      <button id="meno" aria-label="Lepre più lenta">−</button>
+      <div class="big"><span id="obiettivo">6:00</span> <span class="unit">/km</span></div>
+      <button id="piu" aria-label="Lepre più veloce">+</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="label">Il tuo passo (simulato)</div>
+    <div class="big"><span id="passo">6:00</span> <span class="unit">/km</span></div>
+    <input id="cursore" type="range" min="240" max="480" step="1" value="360" aria-label="Il tuo passo">
+    <div class="scale"><span>4:00 veloce</span><span>8:00 lento</span></div>
+  </section>
+
+  <section class="card">
+    <div class="label">Cosa vede il runner</div>
+    <div class="leds" id="leds"></div>
+  </section>
+
+  <div class="row">
+    <button id="via" class="go">Via</button>
+    <button id="stop" class="stop">Stop</button>
+  </div>
+  <p class="hint">Tieni lo schermo acceso durante la prova.</p>
+</main>
+
+<script>
+const SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dc4c01';
+const COMANDI_UUID = '6e400002-b5a3-f393-e0a9-e50e24dc4c01';
+const SCARTO_MAX = 1.5;   // stesso valore del programma sulla scheda
+
+let comandi = null, dispositivo = null;
+let obiettivo = 360;      // secondi al km
+let passo = 360;
+let inCorsa = false;
+let coda = Promise.resolve();
+
+const $ = id => document.getElementById(id);
+const fmt = s => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
+
+// LED simulati sullo schermo
+const leds = [];
+for (let i = 0; i < 6; i++) { const d = document.createElement('div'); d.className = 'led'; $('leds').appendChild(d); leds.push(d); }
+
+function disegnaLed() {
+  const centro = 2.5;
+  let pos = centro;
+  if (inCorsa) {
+    const scarto = Math.max(-1, Math.min(1, (passo - obiettivo) / 60 / SCARTO_MAX));
+    pos = centro + scarto * (centro - 0.2);
+  }
+  leds.forEach((d, i) => {
+    let v = Math.max(0, 1 - Math.abs(i - pos));
+    if (!inCorsa) v = (i === 2 || i === 3) ? 0.35 : 0;
+    d.style.background = v > 0 ? `rgba(159,208,255,${0.15 + 0.85 * v})` : '#26282d';
+    d.style.boxShadow = v > 0.5 ? `0 0 ${18 * v}px rgba(159,208,255,${v})` : 'none';
+  });
+}
+
+// invio dei messaggi alla scheda, uno alla volta
+function invia(testo) {
+  if (!comandi) return;
+  const dati = new TextEncoder().encode(testo);
+  coda = coda.then(() => comandi.writeValueWithoutResponse
+    ? comandi.writeValueWithoutResponse(dati)
+    : comandi.writeValue(dati)).catch(() => {});
+}
+const inviaPasso = () => invia('P' + (passo / 60).toFixed(2));
+const inviaObiettivo = () => invia('T' + (obiettivo / 60).toFixed(2));
+
+async function collega() {
+  if (!navigator.bluetooth) {
+    $('avviso').hidden = false;
+    $('avviso').textContent = 'Questo browser non può usare il Bluetooth. Su iPhone apri la pagina con l’app Bluefy, su Android con Chrome.';
+    return;
+  }
+  try {
+    $('collega').disabled = true;
+    $('collega').textContent = 'Collegamento…';
+    dispositivo = await navigator.bluetooth.requestDevice({
+      filters: [{ name: 'Lepre' }, { services: [SERVICE_UUID] }],
+      optionalServices: [SERVICE_UUID]
+    });
+    dispositivo.addEventListener('gattserverdisconnected', scollegato);
+    const server = await dispositivo.gatt.connect();
+    const servizio = await server.getPrimaryService(SERVICE_UUID);
+    comandi = await servizio.getCharacteristic(COMANDI_UUID);
+    $('stato').textContent = 'Collegata';
+    $('stato').classList.add('on');
+    $('collega').textContent = 'Lepre collegata';
+    $('avviso').hidden = true;
+    inviaObiettivo();
+    inviaPasso();
+    tieniSchermoAcceso();
+  } catch (e) {
+    $('collega').disabled = false;
+    $('collega').textContent = 'Collega la lepre';
+    $('avviso').hidden = false;
+    $('avviso').textContent = 'Collegamento non riuscito. Controlla che la scheda sia accesa e riprova.';
+  }
+}
+
+function scollegato() {
+  comandi = null;
+  $('stato').textContent = 'Non collegata';
+  $('stato').classList.remove('on');
+  $('collega').disabled = false;
+  $('collega').textContent = 'Ricollega la lepre';
+}
+
+let wakeLock = null;
+async function tieniSchermoAcceso() {
+  try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && comandi) tieniSchermoAcceso(); });
+
+// controlli
+$('collega').onclick = collega;
+$('meno').onclick = () => { obiettivo = Math.min(600, obiettivo + 5); aggiorna(); inviaObiettivo(); };
+$('piu').onclick  = () => { obiettivo = Math.max(180, obiettivo - 5); aggiorna(); inviaObiettivo(); };
+$('cursore').oninput = e => { passo = Number(e.target.value); aggiorna(); };
+$('via').onclick  = () => { inCorsa = true; invia('V'); aggiorna(); };
+$('stop').onclick = () => { inCorsa = false; invia('S'); aggiorna(); };
+
+function aggiorna() {
+  $('obiettivo').textContent = fmt(obiettivo);
+  $('passo').textContent = fmt(passo);
+  disegnaLed();
+}
+
+// il passo viene mandato 4 volte al secondo mentre si è collegati
+setInterval(() => { if (comandi) inviaPasso(); }, 250);
+aggiorna();
+</script>
+</body>
+</html>
