@@ -69,19 +69,17 @@
 
   <section class="card">
     <div class="label"><span>Passo della lepre</span></div>
-    <div class="stepper">
-      <button id="meno" aria-label="Lepre più lenta">−</button>
-      <div class="big"><span id="obiettivo">6:00</span> <span class="unit">/km</span></div>
-      <button id="piu" aria-label="Lepre più veloce">+</button>
-    </div>
+    <div class="big"><span id="obiettivo">6:00</span> <span class="unit">/km</span></div>
+    <input id="cursoreLepre" type="range" min="180" max="900" step="5" value="360" aria-label="Passo della lepre">
+    <div class="scale"><span>3:00 veloce</span><span>15:00 lento</span></div>
   </section>
 
   <section class="card">
     <div class="label"><span id="titoloPasso">Il tuo passo (simulato)</span><span id="segnale"></span></div>
     <div class="big"><span id="passo">6:00</span> <span class="unit">/km</span></div>
     <div id="zonaSim">
-      <input id="cursore" type="range" min="240" max="480" step="1" value="360" aria-label="Il tuo passo">
-      <div class="scale"><span>4:00 veloce</span><span>8:00 lento</span></div>
+      <input id="cursore" type="range" min="180" max="1200" step="5" value="360" aria-label="Il tuo passo">
+      <div class="scale"><span>3:00 veloce</span><span>20:00 lento</span></div>
     </div>
     <div id="zonaGps" class="stats" hidden>
       <div><b id="kmh">0,0</b><span>km/h</span></div>
@@ -98,15 +96,15 @@
 
   <button id="via" class="go">Via</button>
   <p class="hint" id="nota">Tieni lo schermo acceso durante la prova.</p>
-  <p class="hint" style="opacity:.5">versione 3.2</p>
+  <p class="hint" style="opacity:.5">versione 3.3</p>
 </main>
 
 <script>
 const SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dc4c01';
 const COMANDI_UUID = '6e400002-b5a3-f393-e0a9-e50e24dc4c01';
-const SCARTO_MAX = 1.5;        // stesso valore del programma sulla scheda
+const SCARTO_REL = 0.25;       // stesso valore della scheda: \u00b125% dal passo della lepre = bordo
 const PRECISIONE_MAX = 20;     // metri: punti GPS meno precisi vengono scartati
-const PASSO_FERMO = 12 * 60;   // sotto ~5 km/h si considera camminata/fermo
+const PASSO_FERMO = 30 * 60;   // sotto 2 km/h si considera fermo
 
 let comandi = null, dispositivo = null;
 let modo = 'sim';
@@ -125,7 +123,7 @@ function disegnaLed() {
   const centro = 2.5;
   let pos = centro;
   if (inCorsa) {
-    const scarto = Math.max(-1, Math.min(1, (passo - obiettivo) / 60 / SCARTO_MAX));
+    const scarto = Math.max(-1, Math.min(1, (passo - obiettivo) / (obiettivo * SCARTO_REL)));
     pos = centro + scarto * (centro - 0.2);
   }
   leds.forEach((d, i) => {
@@ -193,7 +191,8 @@ async function tieniSchermoAcceso() {
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && (comandi || inCorsa)) tieniSchermoAcceso(); });
 
 // ---------- Il tuo passo: GPS + passi, uniti ----------
-const FALCATA_INIZIALE = 0.95;   // metri per passo: poi l'app impara la tua dal GPS
+const FALCATA_INIZIALE = 0.95;   // metri per passo di corsa: poi l'app impara la tua dal GPS
+const FALCATA_CAMMINATA = 0.65; // metri per passo camminando
 let watchId = null, ultimoPunto = null, distanzaTot = 0, inizio = 0;
 let velGps = null, tGps = 0;     // ultima velocità GPS (m/s) e quando è arrivata
 let velocita = 0;                // la velocità stimata, in m/s: parte da 0
@@ -237,13 +236,14 @@ function stimaVelocita() {
       try { localStorage.setItem('falcata', falcata.toFixed(3)); } catch (e) {}
     }
   }
-  const velPassi = cad > 0 ? (cad / 60) * falcata : 0;
+  const velPassi = cad > 0 ? (cad / 60) * (cad < 140 ? FALCATA_CAMMINATA : falcata) : 0;
   let v;
   if (gpsOk && cad > 0) v = 0.5 * velGps + 0.5 * velPassi;   // entrambi: media
   else if (gpsOk) v = velGps;                                // solo GPS
   else v = velPassi;                                         // GPS assente: solo passi
   velocita += (v - velocita) * 0.35;                         // risposta in circa 2 secondi
   if (velocita < 0.05) velocita = 0;
+  if (!gpsOk) distanzaTot += velocita * 0.5;                 // senza GPS: distanza dai passi
   passo = velocita > 1000 / PASSO_FERMO ? 1000 / velocita : PASSO_FERMO;
 }
 
@@ -270,7 +270,7 @@ function movimento(e) {
   filtro = 0.75 * filtro + 0.25 * forza;                   // ammorbidisce le vibrazioni
   media = 0.98 * media + 0.02 * filtro;                    // livello di riposo
   scarto = 0.98 * scarto + 0.02 * Math.abs(filtro - media); // quanto "rimbalza" il telefono
-  const soglia = media + Math.max(1.2, scarto);            // si adatta a mano, fascia o tasca
+  const soglia = media + Math.max(1.0, scarto);            // si adatta a mano, fascia o tasca
   const ora = performance.now();
   if (!sopra && filtro > soglia && ora - ultimoPasso > 250) {   // picco = un appoggio del piede
     sopra = true; ultimoPasso = ora; passi.push(ora);
@@ -319,8 +319,7 @@ function scegliModo(m) {
 $('collega').onclick = collega;
 $('modoSim').onclick = () => scegliModo('sim');
 $('modoGps').onclick = () => scegliModo('gps');
-$('meno').onclick = () => { obiettivo = Math.min(600, obiettivo + 5); aggiorna(); inviaObiettivo(); };
-$('piu').onclick  = () => { obiettivo = Math.max(180, obiettivo - 5); aggiorna(); inviaObiettivo(); };
+$('cursoreLepre').oninput = e => { obiettivo = Number(e.target.value); aggiorna(); inviaObiettivo(); };
 $('cursore').oninput = e => { passo = Number(e.target.value); aggiorna(); };
 $('via').onclick = () => { if (inCorsa) ferma(); else parti(); };
 
