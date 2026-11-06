@@ -1,0 +1,698 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f3b2e">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Hare</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --prato: #0f3b2e;      /* sfondo: il verde del parco */
+    --prato-2: #164a3a;    /* superfici */
+    --linea: #f4f6f1;      /* bianco delle linee di corsia */
+    --salvia: #8fb5a2;     /* testo secondario */
+    --luce: #ffe9a8;       /* la luce di Hare */
+    --stop: #ff8a6b;
+    --cond: "Barlow Condensed", "Arial Narrow", sans-serif;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { background: var(--prato); }
+  body { margin: 0; background: var(--prato); color: var(--linea);
+         font: 17px/1.45 "Barlow", -apple-system, "Segoe UI", sans-serif;
+         padding: max(14px, env(safe-area-inset-top)) 20px max(28px, env(safe-area-inset-bottom)); }
+  main { max-width: 460px; margin: 0 auto; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--luce); outline-offset: 3px; }
+  [hidden] { display: none !important; }
+
+  /* testata */
+  .testata { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 18px; }
+  .marchio { font: 700 40px/1 var(--cond); letter-spacing: -.5px; margin: 0; }
+  .marchio span { color: var(--luce); }
+  .chip { display: inline-flex; align-items: center; gap: 8px; background: none; border: 1.5px solid rgba(244,246,241,.35);
+          border-radius: 99px; padding: 7px 14px; font-size: 15px; font-weight: 500; }
+  .chip::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--salvia); }
+  .chip.on { border-color: var(--luce); }
+  .chip.on::before { background: var(--luce); box-shadow: 0 0 8px var(--luce); }
+  .chip.attesa::before { background: var(--stop); }
+
+  /* la corsia: l'elemento protagonista */
+  .corsia { position: relative; border-top: 3px solid var(--linea); border-bottom: 3px solid var(--linea);
+            padding: 22px 6px; margin: 4px 0 8px; display: flex; justify-content: space-between; }
+  .corsia::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 2px dashed rgba(244,246,241,.18); }
+  .led { position: relative; z-index: 1; width: 18%; aspect-ratio: 1; border-radius: 50%;
+         background: #1d5644; transition: background .15s, box-shadow .15s; }
+  .didascalia { color: var(--salvia); font-size: 15px; margin: 0 0 22px; min-height: 22px; }
+
+  /* blocchi */
+  .blocco { padding: 18px 0; border-top: 1px solid rgba(244,246,241,.14); }
+  .riga { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .nome { color: var(--salvia); font-size: 15px; }
+  .numero { font: 600 64px/1 var(--cond); font-variant-numeric: tabular-nums; letter-spacing: -.5px; }
+  .numero small { font: 500 20px var(--cond); color: var(--salvia); margin-left: 4px; }
+  input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 36px; background: transparent; margin: 10px 0 0; }
+  input[type=range]::-webkit-slider-runnable-track { height: 6px; background: rgba(244,246,241,.22); border-radius: 3px; }
+  input[type=range]::-moz-range-track { height: 6px; background: rgba(244,246,241,.22); border-radius: 3px; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 28px; height: 28px; margin-top: -11px; border-radius: 50%;
+                                            background: var(--luce); box-shadow: 0 0 0 6px rgba(255,233,168,.18); }
+  input[type=range]::-moz-range-thumb { width: 28px; height: 28px; border: 0; border-radius: 50%; background: var(--luce); }
+  .colonna { display: flex; flex-direction: column; gap: 2px; }
+  .colonna .numero { white-space: nowrap; }
+  .doppio { position: relative; height: 46px; margin-top: 10px; }
+  .doppio::before { content: ""; position: absolute; left: 0; right: 0; top: 20px; height: 6px; border-radius: 3px; background: rgba(244,246,241,.22); }
+  .doppio input[type=range]::-webkit-slider-runnable-track { background: transparent; }
+  .doppio input[type=range]::-moz-range-track { background: transparent; }
+  .doppio input[type=range] { position: absolute; left: 0; top: 0; margin: 0; height: 46px; pointer-events: none; }
+  .doppio input[type=range]::-webkit-slider-thumb { pointer-events: auto; }
+  .doppio input[type=range]::-moz-range-thumb { pointer-events: auto; }
+  .fascia { position: absolute; top: 20px; height: 6px; border-radius: 3px; background: var(--luce); opacity: .7; pointer-events: none; z-index: 1; }
+  .doppio input { z-index: 2; }
+  .estremi { display: flex; justify-content: space-between; color: var(--salvia); font-size: 14px; }
+
+  .scelta { display: flex; gap: 0; border: 1.5px solid rgba(244,246,241,.35); border-radius: 12px; overflow: hidden; }
+  .scelta button { flex: 1; background: none; border: 0; padding: 12px 8px; font-weight: 500; color: var(--salvia); }
+  .scelta button.sel { background: var(--linea); color: var(--prato); }
+  .scelta.bloccata { opacity: .4; pointer-events: none; }
+
+  .interruttore { display: flex; justify-content: space-between; align-items: center; gap: 16px; width: 100%;
+                  background: none; border: 0; padding: 0; text-align: left; }
+  .interruttore .testo b { display: block; font-weight: 500; }
+  .interruttore .testo span { color: var(--salvia); font-size: 15px; }
+  .levetta { flex: none; width: 52px; height: 30px; border-radius: 99px; background: rgba(244,246,241,.22); position: relative; transition: background .2s; }
+  .levetta::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: var(--linea); transition: transform .2s; }
+  .interruttore[aria-checked=true] .levetta { background: var(--luce); }
+  .interruttore[aria-checked=true] .levetta::after { transform: translateX(22px); background: var(--prato); }
+
+  .azione { width: 100%; border: 0; border-radius: 16px; padding: 20px; margin-top: 22px;
+            font: 700 28px/1 var(--cond); letter-spacing: .3px; background: var(--luce); color: var(--prato); }
+  .azione.attesa { background: rgba(255,233,168,.35); color: var(--linea); }
+  .azione.secondaria { background: none; border: 1.5px solid var(--linea); color: var(--linea); font-size: 22px; padding: 16px; }
+  .collega { width: 100%; background: none; border: 1.5px dashed rgba(244,246,241,.5); border-radius: 16px; padding: 16px; font-weight: 600; margin-bottom: 18px; }
+  .avviso { color: var(--luce); font-size: 15px; margin: 0 0 14px; }
+  .nota { color: var(--salvia); font-size: 14px; margin: 14px 0 0; text-align: center; }
+
+  /* corsa */
+  .mio { text-align: center; padding: 6px 0 2px; }
+  .mio .numero { font-size: 112px; }
+  .confronto { text-align: center; font: 600 26px/1.2 var(--cond); margin: 4px 0 18px; }
+  .confronto.lento { color: #8fb0ff; }
+  .confronto.veloce { color: #ff8a80; }
+  .confronto.pari { color: #7fe3a0; }
+  .griglia { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid rgba(244,246,241,.14); }
+  .griglia div { padding: 14px 0; border-bottom: 1px solid rgba(244,246,241,.14); }
+  .griglia div:nth-child(odd) { padding-right: 12px; border-right: 1px solid rgba(244,246,241,.14); }
+  .griglia div:nth-child(even) { padding-left: 16px; }
+  .griglia b { display: block; font: 600 34px/1.1 var(--cond); font-variant-numeric: tabular-nums; }
+  .griglia span { color: var(--salvia); font-size: 14px; }
+  .ferma { position: relative; white-space: nowrap; overflow: hidden; width: 100%; border: 1.5px solid var(--stop); background: none; color: var(--stop);
+           border-radius: 16px; padding: 20px; margin-top: 22px; font: 700 26px/1 var(--cond); touch-action: none; user-select: none; -webkit-user-select: none; }
+  .ferma i { position: absolute; inset: 0; background: var(--stop); transform-origin: left; transform: scaleX(0); opacity: .35; }
+  .ferma span { position: relative; }
+
+  /* riepilogo */
+  .titolo { font: 700 34px/1.1 var(--cond); margin: 0 0 4px; }
+  .grafico { width: 100%; height: auto; display: block; margin: 8px 0 6px; }
+  .legenda { display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--salvia); font-size: 14px; margin-bottom: 8px; }
+  .legenda i { display: inline-block; width: 18px; height: 0; vertical-align: middle; margin-right: 6px; border-top: 3px solid var(--linea); }
+  .legenda i.lepre { height: 10px; border: 1.5px dashed var(--luce); background: rgba(255,233,168,.22); }
+  .legenda i.quota { height: 10px; border: 0; background: rgba(143,181,162,.45); }
+  .versione { color: rgba(143,181,162,.6); font-size: 13px; text-align: center; margin-top: 26px; }
+  #sveglia { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+  @media (prefers-reduced-motion: reduce) { .led, .levetta, .levetta::after { transition: none; } }
+</style>
+</head>
+<body>
+<main>
+  <header class="testata">
+    <h1 class="marchio">hare<span>.</span></h1>
+    <button id="stato" class="chip" type="button">Non collegata</button>
+  </header>
+
+  <div class="corsia" id="leds" role="img" aria-label="I quattro LED di Hare"></div>
+  <p class="didascalia" id="didascalia">Hare ti aspetta.</p>
+
+  <!-- PRIMA DELLA CORSA -->
+  <section id="vistaPronta">
+    <button id="collega" class="collega" type="button">Collega Hare</button>
+    <p id="avviso" class="avviso" hidden></p>
+
+    <div class="scelta" id="scelta" role="group" aria-label="Modalità">
+      <button id="modoSim" class="sel" type="button">Simulazione</button>
+      <button id="modoGps" type="button">Corsa reale</button>
+    </div>
+
+    <div class="blocco" style="margin-top:18px">
+      <div class="colonna"><span class="nome">Passo di Hare, da lento a veloce</span><span class="numero" id="obiettivo">5:30–6:00<small>/km</small></span></div>
+      <div class="doppio">
+        <div class="fascia" id="fascia"></div>
+        <input id="cursoreMin" type="range" min="-900" max="-180" step="5" value="-360" aria-label="Estremo lento della fascia di Hare">
+        <input id="cursoreMax" type="range" min="-900" max="-180" step="5" value="-330" aria-label="Estremo veloce della fascia di Hare">
+      </div>
+      <div class="estremi"><span>15:00 lento</span><span>3:00 veloce</span></div>
+    </div>
+
+    <div class="blocco" id="bloccoSim">
+      <div class="riga"><span class="nome">Il tuo passo, simulato</span><span class="numero" id="passoSim">6:00<small>/km</small></span></div>
+      <input id="cursore" type="range" min="-1200" max="-180" step="5" value="-360" aria-label="Il tuo passo simulato">
+      <div class="estremi"><span>20:00 lento</span><span>3:00 veloce</span></div>
+    </div>
+
+    <div class="blocco" id="bloccoGps" hidden>
+      <button id="pendenza" class="interruttore" type="button" role="switch" aria-checked="false">
+        <span class="testo"><b>Hare rallenta in salita</b><span>Il passo viene corretto per la pendenza del percorso</span></span>
+        <span class="levetta" aria-hidden="true"></span>
+      </button>
+      <p class="nota" id="statoGps" style="text-align:left">Cerco il GPS…</p>
+    </div>
+
+    <button id="via" class="azione" type="button">Via</button>
+    <p class="nota" id="nota"></p>
+  </section>
+
+  <!-- DURANTE LA CORSA -->
+  <section id="vistaCorsa" hidden>
+    <div class="mio"><span class="numero" id="passo">–:–<small>/km</small></span></div>
+    <p class="confronto" id="confronto">In partenza</p>
+    <div id="cursoreCorsa" hidden>
+      <input id="cursore2" type="range" min="-1200" max="-180" step="5" value="-360" aria-label="Il tuo passo simulato">
+      <div class="estremi" style="margin-bottom:14px"><span>più lento</span><span>più veloce</span></div>
+    </div>
+    <div class="griglia">
+      <div><b id="tempo">0:00</b><span>tempo</span></div>
+      <div><b id="distanza">0,00</b><span>km</span></div>
+      <div><b id="cadenza">–</b><span>passi al minuto</span></div>
+      <div><b id="pendenzaVal">–</b><span id="pendenzaNome">pendenza</span></div>
+    </div>
+    <button id="ferma" class="ferma" type="button"><i id="fermaBarra"></i><span>Tieni premuto per finire</span></button>
+  </section>
+
+  <!-- DOPO LA CORSA -->
+  <section id="vistaFine" hidden>
+    <h2 class="titolo" id="fineTitolo">Corsa finita</h2>
+    <p class="nome" id="fineSotto"></p>
+    <svg class="grafico" id="grafico" viewBox="0 0 420 240" role="img" aria-label="Andamento del passo durante la corsa"></svg>
+    <div class="legenda">
+      <span><i></i>il tuo passo</span><span><i class="lepre"></i>la fascia di Hare</span><span id="legQuota"><i class="quota"></i>altitudine</span>
+    </div>
+    <div class="griglia">
+      <div><b id="fTempo">0:00</b><span>tempo</span></div>
+      <div><b id="fDistanza">0,00</b><span>km</span></div>
+      <div><b id="fPasso">–:–</b><span>passo medio</span></div>
+      <div><b id="fCadenza">–</b><span>passi al minuto, media</span></div>
+      <div><b id="fConLepre">–</b><span>del tempo con Hare</span></div>
+      <div><b id="fDislivello">–</b><span>dislivello in salita</span></div>
+    </div>
+    <button id="nuova" class="azione" type="button">Nuova corsa</button>
+  </section>
+
+  <p class="versione">versione 7.1</p>
+</main>
+<video id="sveglia" muted playsinline loop src="data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAMNbW9vdgAAAGxtdmhkAAAAAAAAAAAAAAAAAAAD6AAAA+gAAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAjd0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAABAAAAAQAAAAAAAkZWR0cwAAABxlbHN0AAAAAAAAAAEAAAPoAAAAAAABAAAAAAGvbWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAABAAAAAQABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABWm1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAARpzdGJsAAAAtnN0c2QAAAAAAAAAAQAAAKZhdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAABAAEABIAAAASAAAAAAAAAABFUxhdmM2MC4zMS4xMDIgbGlieDI2NAAAAAAAAAAAAAAAGP//AAAALGF2Y0MBQsAK/+EAFWdCwAraewEQAAADABAAAAMAIPEiagEABGjOD8gAAAAQcGFzcAAAAAEAAAABAAAAFGJ0cnQAAAAAAAAUKAAAFCgAAAAYc3R0cwAAAAAAAAABAAAAAQAAQAAAAAAcc3RzYwAAAAAAAAABAAAAAQAAAAEAAAABAAAAFHN0c3oAAAAAAAAChQAAAAEAAAAUc3RjbwAAAAAAAAABAAADPQAAAGJ1ZHRhAAAAWm1ldGEAAAAAAAAAIWhkbHIAAAAAAAAAAG1kaXJhcHBsAAAAAAAAAAAAAAAALWlsc3QAAAAlqXRvbwAAAB1kYXRhAAAAAQAAAABMYXZmNjAuMTYuMTAwAAAACGZyZWUAAAKNbWRhdAAAAm8GBf//a9xF6b3m2Ui3lizYINkj7u94MjY0IC0gY29yZSAxNjQgcjMxMDggMzFlMTlmOSAtIEguMjY0L01QRUctNCBBVkMgY29kZWMgLSBDb3B5bGVmdCAyMDAzLTIwMjMgLSBodHRwOi8vd3d3LnZpZGVvbGFuLm9yZy94MjY0Lmh0bWwgLSBvcHRpb25zOiBjYWJhYz0wIHJlZj0xIGRlYmxvY2s9MTowOjAgYW5hbHlzZT0weDE6MHgxMTEgbWU9aGV4IHN1Ym1lPTIgcHN5PTEgcHN5X3JkPTEuMDA6MC4wMCBtaXhlZF9yZWY9MCBtZV9yYW5nZT0xNiBjaHJvbWFfbWU9MSB0cmVsbGlzPTAgOHg4ZGN0PTAgY3FtPTAgZGVhZHpvbmU9MjEsMTEgZmFzdF9wc2tpcD0xIGNocm9tYV9xcF9vZmZzZXQ9MCB0aHJlYWRzPTEgbG9va2FoZWFkX3RocmVhZHM9MSBzbGljZWRfdGhyZWFkcz0wIG5yPTAgZGVjaW1hdGU9MSBpbnRlcmxhY2VkPTAgYmx1cmF5X2NvbXBhdD0wIGNvbnN0cmFpbmVkX2ludHJhPTAgYmZyYW1lcz0wIHdlaWdodHA9MCBrZXlpbnQ9MjUwIGtleWludF9taW49MSBzY2VuZWN1dD00MCBpbnRyYV9yZWZyZXNoPTAgcmNfbG9va2FoZWFkPTEwIHJjPWNyZiBtYnRyZWU9MSBjcmY9MjMuMCBxY29tcD0wLjYwIHFwbWluPTAgcXBtYXg9NjkgcXBzdGVwPTQgaXBfcmF0aW89MS40MCBhcT0xOjEuMDAAgAAAAA5liIQFf///D0UAAULfgA=="></video>
+
+<script>
+const SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dc4c01';
+const COMANDI_UUID = '6e400002-b5a3-f393-e0a9-e50e24dc4c01';
+const STATO_UUID   = '6e400003-b5a3-f393-e0a9-e50e24dc4c01';
+const SCARTO_REL = 0.25;       // stesso valore della scheda: ±25% dal passo della lepre = bordo
+const PRECISIONE_MAX = 20;     // metri: punti GPS meno precisi vengono scartati
+const PASSO_FERMO = 30 * 60;   // sotto 2 km/h si considera fermo
+const PUNTI_PER_PRONTO = 3;    // punti GPS buoni di fila per dire "GPS pronto"
+const TRATTO_PENDENZA = 100;   // metri su cui si misura la pendenza
+const INTENSITA_PENDENZA = 0.7;  // 1 = modello fisiologico pieno, 0 = pendenza ignorata
+
+let comandi = null, statoChar = null, dispositivo = null, riconnessione = false;
+let modo = 'sim', schermata = 'pronta';
+let obMin = 330, obMax = 360;   // la fascia di Hare: estremo veloce ed estremo lento (secondi al km)
+let passo = 360, passoConfronto = 360;   // secondi al km
+const obMedio = () => (obMin + obMax) / 2;
+const inFascia = (p, lo = obMin, hi = obMax) => p >= lo && p <= hi;
+let inCorsa = false, inizio = 0;
+let usaPendenza = false;
+let coda = Promise.resolve();
+
+const $ = id => document.getElementById(id);
+const fmt = s => { s = Math.round(s); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+const salva = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+const leggi = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+const conUnita = (v, u) => `${v}<small>${u}</small>`;
+
+// ---------- la corsia ----------
+const leds = [];
+for (let i = 0; i < 4; i++) { const d = document.createElement('div'); d.className = 'led'; $('leds').appendChild(d); leds.push(d); }
+// stessa logica della scheda: blu che scorre se sei lenta, verde fisso se sei nella fascia, rosso veloce se corri troppo
+const ISTERESI = 0.02;
+const COLORI = { verde: '57,210,107', blu: '70,130,255', rosso: '255,77,77', bianco: '244,246,241' };
+let zona = 'giusto', tZona = 0;
+function calcolaZona(p) {
+  const fuoriLento = p > obMax * (1 + ISTERESI), fuoriVeloce = p < obMin * (1 - ISTERESI);
+  if (zona === 'giusto') return fuoriLento ? 'lento' : fuoriVeloce ? 'veloce' : 'giusto';
+  if (zona === 'lento') return p > obMax ? 'lento' : fuoriVeloce ? 'veloce' : 'giusto';
+  return p < obMin ? 'veloce' : fuoriLento ? 'lento' : 'giusto';
+}
+function accendi(i, rgb, k) {
+  const d = leds[i];
+  d.style.background = k > 0 ? `rgba(${rgb},${0.25 + 0.75 * k})` : '#1d5644';
+  d.style.boxShadow = k > 0.3 ? `0 0 ${26 * k}px rgba(${rgb},${0.9 * k})` : 'none';
+}
+function scorri(t, periodo, verso, rgb) {
+  const passo = Math.floor(t / periodo) % 4, testa = verso > 0 ? passo : 3 - passo, coda = testa - verso;
+  leds.forEach((_, i) => accendi(i, rgb, i === testa ? 1 : i === coda ? 0.25 : 0));
+}
+function disegnaLed() {
+  const ora = performance.now();
+  if (!inCorsa) {                                            // attesa: i 4 verdi respirano insieme
+    const onda = (Math.sin(ora / 1000 * Math.PI) + 1) / 2;
+    leds.forEach((_, i) => accendi(i, COLORI.verde, 0.12 + 0.4 * onda * onda));
+    return;
+  }
+  const dalVia = Date.now() - inizio;
+  if (dalVia < 800) { const n = Math.floor(dalVia / 100); leds.forEach((_, i) => accendi(i, COLORI.rosso, n < 4 && i <= n ? 0.8 : 0)); return; }
+  if (modo === 'gps' && passo >= PASSO_FERMO) { scorri(ora - tZona, 450, +1, COLORI.blu); return; }
+  const nuova = calcolaZona(passoConfronto);
+  if (nuova !== zona) { zona = nuova; tZona = ora; }
+  if (zona === 'giusto') leds.forEach((_, i) => accendi(i, COLORI.verde, 0.35));
+  else if (zona === 'lento') scorri(ora - tZona, 450, +1, COLORI.blu);
+  else scorri(ora - tZona, 130, -1, COLORI.rosso);
+}
+setInterval(disegnaLed, 40);
+
+// ---------- Bluetooth ----------
+function invia(testo) {
+  if (!comandi) return;
+  const c = comandi, dati = new TextEncoder().encode(testo);
+  coda = coda.then(() => c.writeValueWithoutResponse ? c.writeValueWithoutResponse(dati) : c.writeValue(dati)).catch(() => {});
+}
+const inviaPasso = () => invia('P' + (Math.min(PASSO_FERMO, passoConfronto) / 60).toFixed(2));
+const inviaObiettivo = () => { invia('T' + (obMin / 60).toFixed(2)); invia('U' + (obMax / 60).toFixed(2)); };
+function avvisa(t) { $('avviso').hidden = !t; $('avviso').textContent = t || ''; }
+function chip(t, c) { $('stato').textContent = t; $('stato').className = 'chip' + (c ? ' ' + c : ''); }
+
+async function apriConnessione() {
+  const server = await dispositivo.gatt.connect();
+  const servizio = await server.getPrimaryService(SERVICE_UUID);
+  comandi = await servizio.getCharacteristic(COMANDI_UUID);
+  try { statoChar = await servizio.getCharacteristic(STATO_UUID); } catch (e) { statoChar = null; }
+  chip('Collegata', 'on');
+  $('collega').hidden = true;
+  inviaObiettivo();
+  if (modo === 'sim' || inCorsa) inviaPasso();
+}
+async function collega() {
+  if (!navigator.bluetooth) { avvisa('Questo browser non può usare il Bluetooth. Su iPhone apri la pagina con Bluefy, su Android con Chrome.'); return; }
+  tieniSveglio();
+  try {
+    $('collega').textContent = 'Collegamento in corso…';
+    dispositivo = await navigator.bluetooth.requestDevice({ filters: [{ name: 'Hare' }, { name: 'Lepre' }, { services: [SERVICE_UUID] }], optionalServices: [SERVICE_UUID] });
+    dispositivo.addEventListener('gattserverdisconnected', scollegato);
+    await apriConnessione();
+    avvisa('');
+  } catch (e) {
+    $('collega').textContent = 'Collega Hare';
+    avvisa('Collegamento non riuscito. Controlla che la scheda sia accesa e riprova.');
+  }
+}
+async function scollegato() {
+  comandi = null; statoChar = null;
+  if (riconnessione) return;
+  riconnessione = true;
+  chip('Riconnessione…', 'attesa');
+  for (let i = 0; i < 30 && !comandi; i++) {
+    try { await apriConnessione(); } catch (e) { await new Promise(r => setTimeout(r, 2000)); }
+  }
+  riconnessione = false;
+  if (!comandi) { chip('Non collegata'); $('collega').hidden = false; $('collega').textContent = 'Ricollega Hare'; }
+}
+$('stato').onclick = () => { if (!comandi && !riconnessione) collega(); };
+
+function leggiStatoScheda() {
+  if (!statoChar) return;
+  const s = statoChar;
+  coda = coda.then(() => s.readValue()).then(v => gestisciStato(new TextDecoder().decode(v).trim())).catch(() => {});
+}
+function gestisciStato(s) {
+  if (s === 'C' && !inCorsa && schermata === 'pronta') parti(false);
+  else if (s === 'F' && inCorsa) ferma(false);
+  else if (s === 'A' && inCorsa && Date.now() - inizio > 4000) invia('V');
+}
+
+// ---------- schermo acceso ----------
+function tieniSveglio() {
+  try { if ('wakeLock' in navigator) navigator.wakeLock.request('screen').catch(() => {}); } catch (e) {}
+  try { const p = $('sveglia').play(); if (p) p.catch(() => {}); } catch (e) {}
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && (comandi || inCorsa)) tieniSveglio(); });
+
+// ---------- GPS: velocità, distanza, altitudine ----------
+const FALCATA_INIZIALE = 0.95, FALCATA_CAMMINATA = 0.65;
+let watchId = null, ultimoPunto = null, distanzaTot = 0;
+let velGps = null, tGps = 0, velocita = 0, puntiBuoni = 0, gpsPronto = false;
+let quota = null, storiaQuota = [], pendenza = 0, salita = 0, baseSalita = null;
+let falcata = FALCATA_INIZIALE;
+{ const f = Number(leggi('falcata')); if (f > 0.5 && f < 2) falcata = f; }
+
+function metri(a, b) {
+  const R = 6371000, r = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * r, dLon = (b.lon - a.lon) * r;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+function nuovoPunto(p) {
+  const c = p.coords;
+  const qualita = c.accuracy <= 10 ? 'GPS buono' : c.accuracy <= PRECISIONE_MAX ? 'GPS discreto' : 'GPS debole';
+  $('statoGps').textContent = `${qualita}, precisione ${Math.round(c.accuracy)} m`;
+  if (c.accuracy > PRECISIONE_MAX) { puntiBuoni = 0; return; }
+  puntiBuoni++;
+  if (puntiBuoni >= PUNTI_PER_PRONTO && !gpsPronto) { gpsPronto = true; aggiornaVia(); }
+  const punto = { t: p.timestamp, lat: c.latitude, lon: c.longitude };
+  let v = (c.speed != null && c.speed >= 0) ? c.speed : null;
+  if (ultimoPunto) {
+    const d = metri(ultimoPunto, punto), dt = (punto.t - ultimoPunto.t) / 1000;
+    if (inCorsa && d < 50) distanzaTot += d;
+    if (v == null && dt > 0.5) v = d / dt;
+  }
+  ultimoPunto = punto;
+  if (v != null) { velGps = velGps == null ? v : 0.5 * velGps + 0.5 * v; tGps = Date.now(); }
+  // altitudine: molto ammorbidita, perché il GPS in verticale sbaglia di diversi metri
+  if (c.altitude != null && (c.altitudeAccuracy == null || c.altitudeAccuracy < 30)) {
+    quota = quota == null ? c.altitude : 0.85 * quota + 0.15 * c.altitude;
+    if (inCorsa) {
+      // dislivello: conta solo salite di almeno 2 m, per non sommare il rumore
+      if (baseSalita == null || quota < baseSalita) baseSalita = quota;
+      else if (quota - baseSalita >= 2) { salita += quota - baseSalita; baseSalita = quota; }
+      calcolaPendenza();
+    }
+  }
+}
+// pendenza: retta che meglio segue la quota negli ultimi ~100 metri (regge il rumore del GPS)
+function calcolaPendenza() {
+  if (quota == null) return;
+  if (!storiaQuota.length || distanzaTot - storiaQuota.at(-1).d >= 2) storiaQuota.push({ d: distanzaTot, a: quota });
+  storiaQuota = storiaQuota.filter(q => distanzaTot - q.d <= TRATTO_PENDENZA);
+  if (storiaQuota.length < 8 || distanzaTot - storiaQuota[0].d < TRATTO_PENDENZA * 0.5) return;
+  const n = storiaQuota.length;
+  const md = storiaQuota.reduce((s, q) => s + q.d, 0) / n, ma = storiaQuota.reduce((s, q) => s + q.a, 0) / n;
+  let num = 0, den = 0;
+  storiaQuota.forEach(q => { num += (q.d - md) * (q.a - ma); den += (q.d - md) ** 2; });
+  let g = den > 0 ? num / den : 0;
+  g = Math.max(-0.2, Math.min(0.2, g));
+  if (Math.abs(g) < 0.015) g = 0;                      // sotto l'1,5% è pianura
+  pendenza = 0.8 * pendenza + 0.2 * g;
+}
+// costo della corsa in salita/discesa (Minetti, 2002): quanto "pesa" ogni metro rispetto al piano
+function fattoreFatica(i) {
+  const costo = 155.4 * i ** 5 - 30.4 * i ** 4 - 43.3 * i ** 3 + 46.3 * i ** 2 + 19.5 * i + 3.6;
+  return 1 + INTENSITA_PENDENZA * (costo / 3.6 - 1);
+}
+
+function stimaVelocita() {
+  const cad = cadenzaAttuale();
+  const gpsOk = velGps != null && Date.now() - tGps < 3000;
+  if (gpsOk && cad > 140 && velGps > 1.5) {
+    const f = velGps / (cad / 60);
+    if (f > 0.5 && f < 2) { falcata = 0.97 * falcata + 0.03 * f; salva('falcata', falcata.toFixed(3)); }
+  }
+  const velPassi = cad > 0 ? (cad / 60) * (cad < 140 ? FALCATA_CAMMINATA : falcata) : 0;
+  let v;
+  if (gpsOk && cad > 0) v = 0.5 * velGps + 0.5 * velPassi;
+  else if (gpsOk) v = velGps;
+  else v = velPassi;
+  velocita += (v - velocita) * 0.35;
+  if (velocita < 0.05) velocita = 0;
+  if (!gpsOk) distanzaTot += velocita * 0.5;
+  passo = velocita > 1000 / PASSO_FERMO ? 1000 / velocita : PASSO_FERMO;
+  // il passo "equivalente in piano": in salita vale di più, in discesa di meno
+  passoConfronto = (usaPendenza && passo < PASSO_FERMO) ? Math.min(PASSO_FERMO, passo / fattoreFatica(pendenza)) : passo;
+}
+function avviaGps() {
+  if (watchId != null) return;
+  if (!('geolocation' in navigator)) { avvisa('Questo browser non può usare il GPS.'); return; }
+  puntiBuoni = 0; gpsPronto = false; ultimoPunto = null; velGps = null;
+  $('statoGps').textContent = 'Cerco il GPS…';
+  watchId = navigator.geolocation.watchPosition(nuovoPunto,
+    e => { if (e.code === 1) avvisa('Permesso di posizione negato: attivalo nelle impostazioni del browser.');
+           else if (!ultimoPunto) $('statoGps').textContent = 'Il GPS non risponde: al chiuso il passo si stima dai passi.'; },
+    { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 });
+}
+function fermaGps() { if (watchId != null) navigator.geolocation.clearWatch(watchId); watchId = null; gpsPronto = false; }
+
+// ---------- accelerometro: i passi ----------
+let passi = [], filtro = 9.8, media = 9.8, oscill = 1, sopra = false, ultimoPassoT = 0;
+function movimento(e) {
+  const a = e.accelerationIncludingGravity;
+  if (!a || a.x == null) return;
+  const forza = Math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z);
+  filtro = 0.75 * filtro + 0.25 * forza;
+  media = 0.98 * media + 0.02 * filtro;
+  oscill = 0.98 * oscill + 0.02 * Math.abs(filtro - media);
+  const ora = performance.now();
+  if (!sopra && filtro > media + Math.max(1.0, oscill) && ora - ultimoPassoT > 250) { sopra = true; ultimoPassoT = ora; passi.push(ora); }
+  if (filtro < media) sopra = false;
+  passi = passi.filter(t => ora - t < 10000);
+}
+function cadenzaAttuale() {
+  const ora = performance.now();
+  if (passi.length < 4 || ora - passi.at(-1) > 2000) return 0;
+  const r = passi.slice(-7), iv = [];
+  for (let i = 1; i < r.length; i++) iv.push(r[i] - r[i - 1]);
+  iv.sort((x, y) => x - y);
+  return Math.round(60000 / iv[Math.floor(iv.length / 2)]);
+}
+async function avviaSensori() {
+  try {
+    if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+      const r = await DeviceMotionEvent.requestPermission();
+      if (r !== 'granted') avvisa('Permesso di movimento negato: i passi non verranno contati, resta solo il GPS.');
+    }
+  } catch (e) {}
+  window.addEventListener('devicemotion', movimento);
+}
+
+// ---------- registrazione per il grafico ----------
+let campioni = [];
+function registra() {
+  if (!inCorsa) return;
+  campioni.push({ t: (Date.now() - inizio) / 1000, passo, confronto: passoConfronto, obMin, obMax, quota, d: distanzaTot, cad: cadenzaAttuale() });
+}
+
+// ---------- schermate ----------
+function mostra(s) {
+  schermata = s;
+  $('vistaPronta').hidden = s !== 'pronta';
+  $('vistaCorsa').hidden = s !== 'corsa';
+  $('vistaFine').hidden = s !== 'fine';
+  window.scrollTo(0, 0);
+  aggiorna();
+}
+function scegliModo(m) {
+  if (inCorsa) return;
+  modo = m; salva('modo', m);
+  $('modoSim').classList.toggle('sel', m === 'sim');
+  $('modoGps').classList.toggle('sel', m === 'gps');
+  $('bloccoSim').hidden = m !== 'sim';
+  $('bloccoGps').hidden = m !== 'gps';
+  $('nota').textContent = m === 'sim' ? 'Muovi il cursore per simulare il tuo passo.'
+    : 'All’aperto aspetta che il GPS sia pronto. Al chiuso puoi partire lo stesso.';
+  if (m === 'sim') { fermaGps(); passo = passoConfronto = -Number($('cursore').value); }
+  else { velocita = 0; passo = passoConfronto = PASSO_FERMO; avviaGps(); }
+  aggiornaVia(); aggiorna();
+}
+function aggiornaVia() {
+  const b = $('via');
+  if (modo === 'gps' && !gpsPronto) { b.textContent = 'Via, senza GPS pronto'; b.className = 'azione attesa'; }
+  else { b.textContent = 'Via'; b.className = 'azione'; }
+}
+
+function parti(daApp = true) {
+  if (inCorsa) return;
+  inCorsa = true; inizio = Date.now(); campioni = [];
+  distanzaTot = 0; salita = 0; baseSalita = null; storiaQuota = []; pendenza = 0;
+  if (modo === 'gps') {
+    if (daApp) avviaSensori(); else window.addEventListener('devicemotion', movimento);
+    passi = []; velocita = 0; passo = passoConfronto = PASSO_FERMO; avviaGps();
+  } else { passo = passoConfronto = -Number($('cursore').value); $('cursore2').value = $('cursore').value; }
+  $('cursoreCorsa').hidden = modo !== 'sim';
+  $('pendenzaNome').textContent = modo === 'gps' ? 'pendenza' : 'modalità';
+  tieniSveglio();
+  if (daApp) invia('V');
+  inviaPasso();
+  mostra('corsa');
+}
+function ferma(daApp = true) {
+  if (!inCorsa) return;
+  registra();
+  inCorsa = false;
+  window.removeEventListener('devicemotion', movimento);
+  if (daApp) invia('S');
+  disegnaRiepilogo();
+  mostra('fine');
+}
+
+// fermarsi tenendo premuto: evita di chiudere la corsa per sbaglio
+let pressione = null;
+function inizioPressione(e) {
+  e.preventDefault();
+  const t0 = performance.now();
+  const passoAnim = () => {
+    const k = Math.min(1, (performance.now() - t0) / 900);
+    $('fermaBarra').style.transform = `scaleX(${k})`;
+    if (k >= 1) { finePressione(); ferma(); return; }
+    pressione = requestAnimationFrame(passoAnim);
+  };
+  pressione = requestAnimationFrame(passoAnim);
+}
+function finePressione() { cancelAnimationFrame(pressione); pressione = null; $('fermaBarra').style.transform = 'scaleX(0)'; }
+$('ferma').addEventListener('pointerdown', inizioPressione);
+['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => $('ferma').addEventListener(ev, finePressione));
+$('ferma').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') ferma(); });
+
+// ---------- riepilogo e grafico ----------
+function disegnaRiepilogo() {
+  const durata = (Date.now() - inizio) / 1000;
+  const validi = campioni.filter(c => c.passo < PASSO_FERMO);
+  const km = distanzaTot / 1000;
+  const conLepre = validi.length ? validi.filter(c => inFascia(c.confronto, c.obMin * (1 - ISTERESI), c.obMax * (1 + ISTERESI))).length / validi.length : 0;
+  const cads = campioni.map(c => c.cad).filter(c => c > 0);
+  $('fTempo').textContent = fmt(durata);
+  $('fDistanza').textContent = km.toFixed(2).replace('.', ',');
+  $('fPasso').textContent = modo === 'gps' ? (km > 0.01 ? fmt(durata / km) : '–:–')
+                                          : (validi.length ? fmt(validi.reduce((s, c) => s + c.passo, 0) / validi.length) : '–:–');
+  $('fCadenza').textContent = cads.length ? Math.round(cads.reduce((s, c) => s + c, 0) / cads.length) : '–';
+  $('fConLepre').textContent = validi.length ? Math.round(conLepre * 100) + '%' : '–';
+  $('fDislivello').textContent = modo === 'gps' && campioni.some(c => c.quota != null) ? Math.round(salita) + ' m' : '–';
+  $('fineTitolo').textContent = conLepre >= 0.7 ? 'Hai corso con Hare' : conLepre >= 0.4 ? 'Corsa finita' : 'Hare era altrove';
+  $('fineSotto').textContent = `Hare tra ${fmt(obMax)} e ${fmt(obMin)} al km${usaPendenza && modo === 'gps' ? ', corretta per la pendenza' : ''}.`;
+  disegnaGrafico();
+}
+
+function disegnaGrafico() {
+  const W = 420, H = 240, sx = 44, dx = 410, sy = 14, gy = 196;
+  const svg = $('grafico');
+  // media mobile su 3 campioni per togliere il rumore
+  const pts = campioni.map((c, i) => {
+    const vicini = campioni.slice(Math.max(0, i - 1), i + 2).filter(q => q.passo < PASSO_FERMO);
+    return { t: c.t, p: vicini.length ? vicini.reduce((s, q) => s + q.confronto, 0) / vicini.length : null, q: c.quota };
+  });
+  const durata = Math.max(10, pts.length ? pts.at(-1).t : 10);
+  const valori = pts.map(p => p.p).filter(p => p != null).concat([obMin, obMax]);
+  let lo = Math.min(...valori), hi = Math.max(...valori);
+  lo = Math.max(120, Math.min(lo, obMin * 0.85)); hi = Math.min(PASSO_FERMO, Math.max(hi, obMax * 1.15));
+  const X = t => sx + (t / durata) * (dx - sx);
+  const Y = p => sy + ((p - lo) / (hi - lo)) * (gy - sy);           // più veloce = più in alto
+  let parti_ = [];
+  // altitudine come area sullo sfondo
+  const qs = pts.filter(p => p.q != null);
+  let area = '';
+  if (qs.length > 2) {
+    const qlo = Math.min(...qs.map(p => p.q)), qhi = Math.max(...qs.map(p => p.q)) ;
+    const span = Math.max(8, qhi - qlo);
+    const QY = q => gy - 8 - ((q - qlo) / span) * 70;
+    area = `<path d="M${X(qs[0].t)},${gy} ${qs.map(p => `L${X(p.t).toFixed(1)},${QY(p.q).toFixed(1)}`).join(' ')} L${X(qs.at(-1).t)},${gy} Z" fill="rgba(143,181,162,.28)"/>`;
+    $('legQuota').hidden = false;
+  } else $('legQuota').hidden = true;
+  // griglia: righe di passo a valori tondi
+  const passoGriglia = [15, 30, 60, 120, 300].find(st => (hi - lo) / st <= 4) || 300;
+  for (let p = Math.ceil(lo / passoGriglia) * passoGriglia; p <= hi; p += passoGriglia) {
+    parti_.push(`<line x1="${sx}" x2="${dx}" y1="${Y(p)}" y2="${Y(p)}" stroke="rgba(244,246,241,.12)"/>`);
+    parti_.push(`<text x="${sx - 8}" y="${Y(p) + 5}" text-anchor="end" font-size="14" fill="#8fb5a2" font-family="Barlow Condensed, sans-serif">${fmt(p)}</text>`);
+  }
+  // asse del tempo in minuti
+  const passoMin = durata > 1200 ? 300 : durata > 360 ? 120 : 60;
+  for (let t = 0; t <= durata; t += passoMin) {
+    parti_.push(`<text x="${X(t)}" y="${gy + 22}" text-anchor="middle" font-size="14" fill="#8fb5a2" font-family="Barlow Condensed, sans-serif">${Math.round(t / 60)}′</text>`);
+  }
+  // la lepre
+  // la fascia di Hare: banda chiara tra i due estremi (segue eventuali cambi durante la corsa)
+  const cs = campioni.length ? campioni : [{ t: 0, obMin, obMax }, { t: durata, obMin, obMax }];
+  const sopra = cs.map((c, i) => `${i ? 'L' : 'M'}${X(c.t).toFixed(1)},${Y(c.obMin).toFixed(1)}`).join(' ');
+  const sotto = cs.slice().reverse().map(c => `L${X(c.t).toFixed(1)},${Y(c.obMax).toFixed(1)}`).join(' ');
+  const lepre = `<path d="${sopra} ${sotto} Z" fill="rgba(255,233,168,.22)" stroke="#ffe9a8" stroke-width="1.5" stroke-dasharray="6 5"/>`;
+  // il tuo passo, interrotto dove eri ferma
+  let d = '', su = false;
+  pts.forEach(p => { if (p.p == null) { su = false; return; } d += `${su ? 'L' : 'M'}${X(p.t).toFixed(1)},${Y(p.p).toFixed(1)} `; su = true; });
+  const mio = `<path d="${d}" fill="none" stroke="#f4f6f1" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>`;
+  const vuoto = pts.filter(p => p.p != null).length < 2
+    ? `<text x="${(sx + dx) / 2}" y="${(sy + gy) / 2}" text-anchor="middle" font-size="16" fill="#8fb5a2">Troppo pochi dati: corri almeno un minuto</text>` : '';
+  svg.innerHTML = area + parti_.join('') + lepre + mio + vuoto;
+}
+
+// ---------- aggiornamento dello schermo ----------
+function aggiorna() {
+  $('obiettivo').innerHTML = conUnita(obMin === obMax ? fmt(obMin) : `${fmt(obMax)}–${fmt(obMin)}`, '/km');
+  disegnaFascia();
+  $('passoSim').innerHTML = conUnita(fmt(-Number($('cursore').value)), '/km');
+  const fermo = passo >= PASSO_FERMO;
+  $('passo').innerHTML = conUnita(fermo ? '–:–' : fmt(passo), '/km');
+  const c = $('confronto');
+  if (inCorsa) {
+    if (fermo) { c.textContent = 'Parti quando vuoi'; c.className = 'confronto'; }
+    else {
+      const z = calcolaZona(passoConfronto);
+      const diff = z === 'lento' ? Math.max(1, passoConfronto - obMax) : z === 'veloce' ? Math.min(-1, passoConfronto - obMin) : 0;
+      if (diff === 0) { c.textContent = 'Sei con Hare'; c.className = 'confronto pari'; }
+      else if (diff > 0) { c.textContent = `${fmt(diff)} al km dietro Hare`; c.className = 'confronto lento'; }
+      else { c.textContent = `${fmt(-diff)} al km davanti a Hare`; c.className = 'confronto veloce'; }
+    }
+    $('didascalia').textContent = fermo ? 'Hare è partita: raggiungila.' : 'Verde: sei con Hare. Blu: accelera. Rosso: rallenta.';
+  } else {
+    $('didascalia').textContent = schermata === 'fine' ? 'Hare ti aspetta per la prossima.' : 'Hare ti aspetta.';
+  }
+  disegnaLed();
+}
+
+// ---------- controlli ----------
+$('collega').onclick = collega;
+$('modoSim').onclick = () => scegliModo('sim');
+$('modoGps').onclick = () => scegliModo('gps');
+function cambiaFascia(e) {
+  let a = Number($('cursoreMin').value), b = Number($('cursoreMax').value);
+  if (a > b) { if (e.target.id === 'cursoreMin') b = a; else a = b; $('cursoreMin').value = a; $('cursoreMax').value = b; }
+  obMax = -a; obMin = -b; salva('obMin', obMin); salva('obMax', obMax);   // a sinistra il passo lento, a destra il veloce
+  aggiorna(); inviaObiettivo();
+}
+$('cursoreMin').oninput = cambiaFascia;
+$('cursoreMax').oninput = cambiaFascia;
+function disegnaFascia() {
+  const f = $('fascia'), r = v => (v + 900) / (900 - 180), pollice = 28;
+  const larghezza = $('cursoreMin').getBoundingClientRect().width || 300;
+  const x = v => pollice / 2 + r(v) * (larghezza - pollice);
+  f.style.left = x(-obMax) + 'px'; f.style.width = Math.max(4, x(-obMin) - x(-obMax)) + 'px';
+}
+window.addEventListener('resize', disegnaFascia);
+$('cursore').oninput = e => { passo = passoConfronto = -Number(e.target.value); aggiorna(); };
+$('cursore2').oninput = e => { passo = passoConfronto = -Number(e.target.value); $('cursore').value = e.target.value; aggiorna(); };
+$('via').onclick = () => parti();
+$('nuova').onclick = () => { mostra('pronta'); scegliModo(modo); };
+$('pendenza').onclick = () => {
+  usaPendenza = !usaPendenza; salva('pendenza', usaPendenza ? '1' : '0');
+  $('pendenza').setAttribute('aria-checked', usaPendenza);
+};
+
+setInterval(() => { if (comandi && (modo === 'sim' || inCorsa)) inviaPasso(); }, 250);
+setInterval(() => { if (inCorsa && modo === 'gps') { stimaVelocita(); aggiorna(); } }, 500);
+setInterval(registra, 2000);
+setInterval(() => {
+  leggiStatoScheda();
+  if (!inCorsa) return;
+  $('tempo').textContent = fmt((Date.now() - inizio) / 1000);
+  $('distanza').textContent = (distanzaTot / 1000).toFixed(2).replace('.', ',');
+  const c = cadenzaAttuale();
+  $('cadenza').textContent = c ? c : '–';
+  $('pendenzaVal').textContent = modo === 'gps' ? (quota == null ? '–' : `${pendenza >= 0 ? '+' : '−'}${Math.abs(pendenza * 100).toFixed(0)}%`) : 'simulata';
+  if (modo === 'gps') invia('C' + c);
+  if (modo === 'sim') distanzaTot += 1000 / passo;   // in simulazione la distanza segue il passo
+}, 1000);
+
+// all'apertura: riprende le ultime impostazioni
+{ const a = Number(leggi('obMin')), b = Number(leggi('obMax'));
+  if (a >= 180 && b <= 900 && a <= b) { obMin = a; obMax = b; $('cursoreMin').value = -b; $('cursoreMax').value = -a; } }
+usaPendenza = leggi('pendenza') === '1'; $('pendenza').setAttribute('aria-checked', usaPendenza);
+scegliModo(leggi('modo') === 'gps' ? 'gps' : 'sim');
+</script>
+</body>
+</html>
